@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محلل التشريح السني ومولد الصور</title>
+    <!-- تحميل Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#1E3A8A', // Dark Blue
+                        'secondary': '#3B82F6', // Blue
+                        'accent': '#93C5FD', // Light Blue
+                        'background': '#F9FAFB', // Light Gray background
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700&display=swap');
+        body {
+            font-family: 'Almarai', sans-serif;
+            background-color: #F9FAFB;
+        }
+        .card-shadow {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        /* Custom scrollbar for better appearance */
+        .custom-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background-color: #93C5FD;
+            border-radius: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background-color: #E5E7EB;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <!-- Firebase SDK Imports (Mandatory but simplified for this use case) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the environment
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const __initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, auth, db;
+
+        if (Object.keys(firebaseConfig).length > 0) {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+
+            // Authentication process
+            async function authenticate() {
+                try {
+                    if (__initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    console.log("Firebase Auth initialized successfully.");
+                } catch (error) {
+                    console.error("Firebase Auth failed:", error);
+                }
+            }
+            authenticate();
+        } else {
+            console.warn("Firebase config missing. Running in standalone mode.");
+        }
+    </script>
+
+    <div class="max-w-7xl mx-auto">
+        <header class="text-center mb-10 p-6 bg-primary text-white rounded-xl card-shadow">
+            <h1 class="text-3xl md:text-4xl font-bold">مختبر تحليل التشريح السني المتقدم</h1>
+            <p class="mt-2 text-accent text-lg">مولد صور علمية وشرح تحليلي لأجزاء السن</p>
+        </header>
+
+        <!-- Main Layout: Input (Top) and Results/History (Bottom/Side) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- Generation Panel (Col 1) -->
+            <div class="lg:col-span-1 p-6 bg-white rounded-xl card-shadow h-fit">
+                <h2 class="text-2xl font-semibold text-primary border-b pb-3 mb-4">اختر الجزئية للتحليل والتوليد</h2>
+                
+                <div class="mb-6">
+                    <label for="anatomyPart" class="block text-lg font-medium text-gray-700 mb-2">الجزئية التشريحية/السريرية:</label>
+                    <select id="anatomyPart" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-secondary focus:border-secondary transition duration-150 text-gray-800 bg-gray-50">
+                        <option value="" disabled selected>-- اختر جزئية من المحاضرة --</option>
+                        <optgroup label="التاج والجذر (Anatomical & Clinical)">
+                            <option value="Anatomical Crown">التاج التشريحي (Anatomical Crown)</option>
+                            <option value="Anatomical Root">الجذر التشريحي (Anatomical Root)</option>
+                            <option value="Clinical Crown">التاج السريري (Clinical Crown)</option>
+                            <option value="Clinical Root">الجذر السريري (Clinical Root)</option>
+                        </optgroup>
+                        <optgroup label="تقسيمات الجذر (Root Divisions)">
+                            <option value="Root Trunk">جذع الجذر (Root Trunk)</option>
+                            <option value="Single-Rooted Tooth">السن ذو الجذر الواحد (Single-Rooted)</option>
+                            <option value="Multirooted Tooth">السن متعدد الجذور (Multirooted)</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <button id="generateBtn" 
+                        class="w-full py-3 px-4 bg-secondary text-white font-bold rounded-lg hover:bg-primary transition duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg">
+                    توليد الصورة والشرح التحليلي
+                </button>
+
+                <div id="messageBox" class="mt-4 p-3 bg-red-100 text-red-800 rounded-lg hidden" role="alert"></div>
+
+                <div class="mt-8">
+                    <h3 class="text-xl font-semibold text-primary border-b pb-2 mb-4">سجل التوليدات المحفوظة محليًا</h3>
+                    <ul id="historyList" class="space-y-2 custom-scroll max-h-96 overflow-y-auto">
+                        <!-- History items will be inserted here -->
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Results Panel (Col 2 & 3) -->
+            <div class="lg:col-span-2 p-6 bg-white rounded-xl card-shadow">
+                <h2 class="text-2xl font-semibold text-primary border-b pb-3 mb-4">النتائج التوليدية والشرح</h2>
+                
+                <div id="loadingIndicator" class="text-center py-12 hidden">
+                    <div class="animate-spin inline-block w-10 h-10 border-4 border-secondary border-t-transparent rounded-full" role="status"></div>
+                    <p class="mt-3 text-lg text-gray-600">جاري توليد الصورة والشرح... قد يستغرق الأمر بعض الوقت.</p>
+                </div>
+
+                <div id="resultContainer" class="hidden">
+                    <h3 id="resultTitle" class="text-3xl font-bold text-center text-secondary mb-6"></h3>
+                    
+                    <!-- Image Section -->
+                    <div class="mb-8 border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <p class="text-xl font-semibold text-primary mb-3">الصورة التوضيحية العلمية:</p>
+                        <img id="generatedImage" src="" alt="صورة توضيحية للجزئية المختارة" class="w-full h-auto rounded-lg shadow-xl max-h-[500px] object-contain mx-auto border border-accent/50"/>
+                        <p id="imageNote" class="text-center text-sm text-gray-500 mt-2 italic"></p>
+                    </div>
+
+                    <!-- Explanation Section -->
+                    <div class="p-6 bg-accent/20 rounded-lg">
+                        <p class="text-xl font-semibold text-primary mb-3">الشرح والتفصيل العلمي:</p>
+                        <div id="resultExplanation" class="text-gray-800 leading-relaxed space-y-4">
+                            <!-- Explanation text will be inserted here -->
+                        </div>
+                        <p class="mt-4 text-sm text-gray-600 border-t pt-2 italic">ملاحظة: هذا الشرح مستمد من مفاهيم المحاضرة والأسس التشريحية المعتمدة.</p>
+                    </div>
+
+                    <button id="saveBtn" class="mt-6 py-2 px-4 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition duration-300 shadow-md">
+                        حفظ النتيجة محليًا
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Constants for API and Local Storage
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=";
+        const API_KEY = ""; // Placeholder for Canvas environment
+        const LOCAL_STORAGE_KEY = 'toothAnatomyHistory';
+
+        // Mapped Data: English Name, Arabic Name, Scientific Explanation, Image Prompt
+        const anatomyData = {
+            "Anatomical Crown": {
+                ar: "التاج التشريحي",
+                explanation: `
+                    <p><strong>التعريف:</strong> هو الجزء من السن المغطى بالمينا (Enamel)، بغض النظر عما إذا كان ظاهراً في الفم أم لا.</p>
+                    <p><strong>التوضيح:</strong> يبدأ من الحافة القاطعة/السطح الطاحن ويمتد نزولاً حتى التقاء المينا والملاط (CEJ). هذا الجزء ثابت ولا يتغير طوله أو حدوده بعد اكتمال تكون السن، ويشكل الهيكل الصلب الخارجي للسن.</p>
+                    <p><strong>أهميته:</strong> يحدد الشكل الخارجي للسن وهو المسؤول عن القيام بوظائف المضغ والتقطيع، وحمايته من التسوس بسبب صلابة المينا.</p>
+                `,
+                prompt: "A detailed cross-section scientific illustration of a human tooth clearly highlighting the Anatomical Crown (the portion covered by enamel) in a contrasting color.",
+            },
+            "Anatomical Root": {
+                ar: "الجذر التشريحي",
+                explanation: `
+                    <p><strong>التعريف:</strong> هو الجزء من السن المغطى بالملاط (Cementum)، بغض النظر عن موقعه السريري.</p>
+                    <p><strong>التوضيح:</strong> يبدأ من التقاء المينا والملاط (CEJ) ويمتد نزولاً حتى قمة الجذر (Apex). هذا الجزء ثابت الحدود ولا يتغير، ويكون مغروساً داخل العظم السنخي ومثبتاً بالأربطة اللثوية.</p>
+                    <p><strong>أهميته:</strong> هو مرساة السن داخل الفك، ويحمل السن ويوفر سطحاً لتثبيت ألياف الرباط حول السني (Periodontal Ligament) التي تمتص قوى المضغ.</p>
+                `,
+                prompt: "A detailed cross-section scientific illustration of a human tooth clearly highlighting the Anatomical Root (the portion covered by cementum) in a contrasting color.",
+            },
+            "Clinical Crown": {
+                ar: "التاج السريري",
+                explanation: `
+                    <p><strong>التعريف:</strong> هو الجزء المرئي من السن داخل التجويف الفموي، أي الجزء الظاهر فوق حافة اللثة.</p>
+                    <p><strong>التوضيح:</strong> هذا الجزء ديناميكي ومتغير. في الأسنان حديثة البزوغ، يكون عادةً أصغر من التاج التشريحي. وفي حالات انحسار اللثة (Gingival Recession) لدى كبار السن، قد يصبح أكبر من التاج التشريحي، ليشمل جزءاً من الجذر التشريحي الظاهر.</p>
+                    <p><strong>أهميته:</strong> هو النقطة التي يتم عليها إجراء الترميمات السريرية، وهو ما يهم طبيب الأسنان والمريض عند تقييم الجماليات وصحة اللثة.</p>
+                `,
+                prompt: "A realistic clinical illustration of a molar tooth in the jaw, with the gingiva clearly visible, highlighting the Clinical Crown (the visible portion above the gum line) in a vibrant color. Show mild gingival recession.",
+            },
+            "Clinical Root": {
+                ar: "الجذر السريري",
+                explanation: `
+                    <p><strong>التعريف:</strong> هو الجزء غير المرئي من السن والمغمور داخل الأنسجة الداعمة (اللثة والعظم).</p>
+                    <p><strong>التوضيح:</strong> هذا الجزء متغير لأنه يعتمد على مستوى اللثة والعظم المحيط بالسن. يشمل الجذر السريري الجزء المغمور من الجذر التشريحي وأي جزء من التاج التشريحي لا يزال مغطى باللثة.</p>
+                    <p><strong>أهميته:</strong> يوفر الدعم الهيكلي والوظيفي للسن، وحجمه وكثافته مرتبطان مباشرة باستقرار السن ومقاومته لأمراض اللثة.</p>
+                `,
+                prompt: "A realistic clinical illustration of a tooth in the alveolar bone, showing the gingiva. Highlight the Clinical Root (the portion embedded in the bone and gum) in a specific color. High scientific accuracy.",
+            },
+            "Root Trunk": {
+                ar: "جذع الجذر",
+                explanation: `
+                    <p><strong>التعريف:</strong> هو الجزء غير المنقسم من الجذر في الأسنان متعددة الجذور (مثل الأضراس)، ويمتد من التقاء الملاط والمينا (CEJ) حتى نقطة الانقسام الجذري (Furcation Area).</p>
+                    <p><strong>التوضيح:</strong> يوجد هذا الجزء فقط في الأضراس والضواحك العلوية (بعض الحالات). طول جذع الجذر مهم سريرياً؛ فكلما كان أطول، كان الانقسام أعمق، مما قد يؤثر على طريقة تنظيف الجيب اللثوي في تلك المنطقة.</p>
+                    <p><strong>أهميته:</strong> يوفر استقراراً أولياً للسن قبل انقسام الجذر، ويؤثر طوله على مدى صعوبة علاج أمراض دواعم السن التي تشمل منطقة الانقسام الجذري.</p>
+                `,
+                prompt: "A detailed diagram of a mandibular molar, clearly showing and highlighting the Root Trunk, which is the undivided portion of the root above the furcation. Use high scientific accuracy.",
+            },
+            "Single-Rooted Tooth": {
+                ar: "السن ذو الجذر الواحد",
+                explanation: `
+                    <p><strong>الأمثلة:</strong> تشمل القواطع، والأنياب، والضواحك السفلية، والضاحك الأول العلوي.</p>
+                    <p><strong>التوضيح:</strong> يتميز هذا السن بوجود جذر واحد يمتد من عنق السن إلى قمته. غالباً ما يكون الجذر مخروطياً وله شكل انسيابي، ولكنه قد يحتوي على أخاديد طولية أو شكل بيضاوي في المقطع العرضي.</p>
+                    <p><strong>أهميته:</strong> تتميز هذه الأسنان ببساطة نسبيًا في علاج قناة الجذر (Endodontic Treatment)، لكن شكلها البيضاوي قد يتطلب عناية خاصة لضمان تنظيف القناة بالكامل.</p>
+                `,
+                prompt: "A clear, scientifically accurate 3D rendering of a maxillary canine tooth, clearly illustrating its single, long root and crown morphology.",
+            },
+            "Multirooted Tooth": {
+                ar: "السن متعدد الجذور",
+                explanation: `
+                    <p><strong>الأمثلة:</strong> تشمل الأضراس (Molars) العلوية والسفلية، وبعض الضواحك العلوية (الضاحك العلوي الأول عادةً).</p>
+                    <p><strong>التوضيح:</strong> يتميز هذا السن بوجود جذعين أو ثلاثة جذور (أو أكثر نادراً) تنبع من جذع الجذر. يوفر هذا التقسيم دعماً أكبر للسن لمقاومة قوى المضغ القوية.</p>
+                    <p><strong>أهميته:</strong> تتطلب هذه الأسنان تقنيات علاجية أكثر تعقيداً في طب الأسنان اللبي (Endodontics) وطب دواعم السن (Periodontics) بسبب وجود مناطق الانقسام الجذري (Furcation Areas) التي قد تتأثر بالالتهابات.</p>
+                `,
+                prompt: "A clear, scientifically accurate 3D rendering of a mandibular first molar tooth, clearly illustrating its two distinct roots and the area of furcation.",
+            }
+        };
+
+        // DOM Elements
+        const generateBtn = document.getElementById('generateBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const anatomyPartSelect = document.getElementById('anatomyPart');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const resultContainer = document.getElementById('resultContainer');
+        const resultTitle = document.getElementById('resultTitle');
+        const generatedImage = document.getElementById('generatedImage');
+        const imageNote = document.getElementById('imageNote');
+        const resultExplanation = document.getElementById('resultExplanation');
+        const historyList = document.getElementById('historyList');
+        const messageBox = document.getElementById('messageBox');
+
+        let currentResult = null;
+
+        // Utility to handle exponential backoff for API retries
+        const fetchWithRetry = async (url, options, maxRetries = 5) => {
+            let error = null;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.status === 429 || response.status >= 500) {
+                        throw new Error('Server error or rate limit exceeded');
+                    }
+                    return response;
+                } catch (e) {
+                    error = e;
+                    const delay = Math.pow(2, i) * 1000;
+                    console.warn(`Request failed (attempt ${i + 1}/${maxRetries}). Retrying in ${delay / 1000}s...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            throw error; // Re-throw the error if all retries fail
+        };
+
+        // --- Core Generation Logic ---
+        const generateContent = async () => {
+            const selectedKey = anatomyPartSelect.value;
+            if (!selectedKey) {
+                showMessage("الرجاء اختيار جزئية تشريحية أولاً.", 'error');
+                return;
+            }
+
+            const data = anatomyData[selectedKey];
+            
+            // 1. Prepare UI for loading
+            resultContainer.classList.add('hidden');
+            loadingIndicator.classList.remove('hidden');
+            generateBtn.disabled = true;
+            showMessage("", 'clear');
+
+            try {
+                // 2. Prepare API payload
+                const prompt = data.prompt;
+                const payload = { 
+                    instances: [{ prompt: prompt }], 
+                    parameters: { "sampleCount": 1 } 
+                };
+                
+                // 3. Call Image Generation API (Imagen 3.0)
+                const response = await fetchWithRetry(API_URL + API_KEY, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.predictions && result.predictions.length > 0 && result.predictions[0].bytesBase64Encoded) {
+                    const base64Data = result.predictions[0].bytesBase64Encoded;
+                    const imageUrl = `data:image/png;base64,${base64Data}`;
+
+                    // 4. Update UI with results
+                    resultTitle.textContent = data.ar;
+                    generatedImage.src = imageUrl;
+                    imageNote.textContent = `تم توليد الصورة التوضيحية بناءً على المفهوم العلمي لـ: ${data.ar}`;
+                    resultExplanation.innerHTML = data.explanation;
+                    
+                    // Store current result object for saving
+                    currentResult = {
+                        id: Date.now(),
+                        name_ar: data.ar,
+                        name_en: selectedKey,
+                        explanation: data.explanation,
+                        image_url: imageUrl,
+                        timestamp: new Date().toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' })
+                    };
+
+                    resultContainer.classList.remove('hidden');
+                } else {
+                    showMessage("فشل توليد الصورة. قد تكون هناك مشكلة في استجابة المولد. (الرجاء المحاولة مرة أخرى)", 'error');
+                }
+
+            } catch (error) {
+                console.error("Generation Error:", error);
+                showMessage("حدث خطأ أثناء الاتصال بخدمة التوليد. الرجاء التحقق من اتصالك والمحاولة لاحقًا.", 'error');
+            } finally {
+                loadingIndicator.classList.add('hidden');
+                generateBtn.disabled = false;
+            }
+        };
+
+        // --- Local Storage and History Logic ---
+
+        const getHistory = () => {
+            const history = localStorage.getItem(LOCAL_STORAGE_KEY);
+            return history ? JSON.parse(history) : [];
+        };
+
+        const saveResult = () => {
+            if (!currentResult) {
+                showMessage("لا توجد نتيجة لتوليدها وحفظها.", 'error');
+                return;
+            }
+
+            const history = getHistory();
+            // Check if this specific part was already saved (optional: prevent duplicates)
+            const isDuplicate = history.some(item => item.name_en === currentResult.name_en);
+
+            history.unshift(currentResult); // Add to the beginning
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(history));
+            
+            showMessage(`تم حفظ تحليل "${currentResult.name_ar}" بنجاح في السجل المحلي.`, 'success');
+            renderHistory();
+        };
+
+        const renderHistory = () => {
+            const history = getHistory();
+            historyList.innerHTML = ''; // Clear existing list
+
+            if (history.length === 0) {
+                historyList.innerHTML = '<li class="text-gray-500 italic p-2 border-dashed border-2 rounded-lg">لا توجد نتائج محفوظة بعد.</li>';
+                return;
+            }
+
+            history.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center p-3 bg-gray-100 rounded-lg hover:bg-accent/50 transition duration-150 cursor-pointer text-gray-800';
+                li.innerHTML = `
+                    <span class="font-medium">${item.name_ar}</span>
+                    <span class="text-xs text-gray-500">${item.timestamp}</span>
+                `;
+                li.addEventListener('click', () => loadFromHistory(item));
+                historyList.appendChild(li);
+            });
+        };
+        
+        const loadFromHistory = (item) => {
+            // Display the loaded item in the result panel
+            resultTitle.textContent = item.name_ar;
+            generatedImage.src = item.image_url;
+            imageNote.textContent = `صورة محفوظة ومحملة من السجل المحلي. تم التوليد بتاريخ: ${item.timestamp}`;
+            resultExplanation.innerHTML = item.explanation;
+            currentResult = item; // Set current result in case user wants to re-save/view
+
+            // Update UI visibility
+            resultContainer.classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to the results
+        };
+
+        const showMessage = (msg, type) => {
+            messageBox.textContent = msg;
+            if (msg === "") {
+                messageBox.classList.add('hidden');
+                return;
+            }
+            messageBox.classList.remove('hidden');
+            messageBox.classList.remove('bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800');
+            
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'text-red-800');
+            } else if (type === 'success') {
+                messageBox.classList.add('bg-green-100', 'text-green-800');
+            }
+        };
+
+
+        // --- Event Listeners and Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            renderHistory();
+            generateBtn.addEventListener('click', generateContent);
+            saveBtn.addEventListener('click', saveResult);
+        });
+
+    </script>
+</body>
+</html>
